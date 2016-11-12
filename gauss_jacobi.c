@@ -154,7 +154,7 @@ int main(int argc, char** argv){
 
 	setupM();
 
-	for(laps = 0; laps < 5000; laps++){
+	for(laps = 0; laps < 10000; laps++){
 		for(i = 1; i < divX + 1; i++){
 			for(j = 1; j < divY + 1; j++){
 				// printf("u(%d, %d) = %lf,\n", i, j, u(i, j));
