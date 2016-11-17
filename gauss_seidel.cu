@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <cuda.h>
 
 #define PRECISION 0.00001
 #define uN 5.0
@@ -13,32 +14,40 @@ double denominador1, denominador2;
 double *h_m, *d_m;
 int divX, divY, laps;
 
-__device__ double a(int i, int j, double intervaloX, double intervaloY){
-	double x = i*intervaloX;
-	double y = i*intervaloY;
+//Essas sao as variaveis globais da GPU
+__device__ double d_intervaloX;
+__device__ double d_intervaloY;
+__device__ double d_denominador1;
+__device__ double d_denominador2;
+__device__ int d_divX;
+__device__ int d_divY;
+
+__device__ double a(int i, int j){
+	double x = i*d_intervaloX;
+	double y = i*d_intervaloY;
 	return 500 * x * (1 - x) * (0.5 - y);
 }
 
-__device__ double b(int i, int j, double intervaloX, double intervaloY){
-	double x = i*intervaloX;
-	double y = i*intervaloY;
+__device__ double b(int i, int j){
+	double x = i*d_intervaloX;
+	double y = i*d_intervaloY;
 	return 500 * y * (y - 1) * (x - 0.5);
 }
 
-__device__ double n(int i, int j,double intervaloX, double intervaloY, double denominador2){
-	return (2.0 - intervaloX * b(i,j, intervaloX, intervaloY))/denominador2;
+__device__ double n(int i, int j){
+	return (2.0 - d_intervaloX * b(i,j))/d_denominador2;
 }
-__device__ double s(int i, int j, double intervaloX, double intervaloY, double denominador2){
-	return (2.0 + intervaloX * b(i,j, intervaloX, intervaloY))/denominador2;
+__device__ double s(int i, int j){
+	return (2.0 + d_intervaloX * b(i,j))/d_denominador2;
 }
-__device__ double e(int i, int j, double intervaloX, double intervaloY, double denominador1){
-	return (2.0 - intervaloX * a(i,j, intervaloX, intervaloY))/denominador1;
+__device__ double e(int i, int j){
+	return (2.0 - d_intervaloX * a(i,j))/d_denominador1;
 }
-__device__ double w(int i, int j, double intervaloX, double intervaloY, double denominador1){
-	return (2.0 + intervaloX * a(i,j, intervaloX, intervaloY))/denominador1;
+__device__ double w(int i, int j){
+	return (2.0 + d_intervaloX * a(i,j))/d_denominador1;
 }
 
-__device__ double malha(double *matriz, int i, int j, int divX){
+__device__ double malha(double *matriz, int i, int j){
 	// //OBS: Casos de canto não importam, pois nunca serão usados no problema.
 	// //e.g. u(0,0) ou u(1,0) nunca serão usados no problema então tanto faz
 	// //o valor retornado.
@@ -57,10 +66,10 @@ __device__ double malha(double *matriz, int i, int j, int divX){
 	// if(j == divX + 2){
 	// 	return uS;
 	// }
-	return matriz[(i)*(divX + 2) + (j)];
+	return matriz[(i)*(d_divX + 2) + (j)];
 }
 
-__device__ double u(double *matriz, int i, int j, double den1, double den2, double intervaloX, double intervaloY, int divX, int divY){
+__device__ double u(double *matriz, int i, int j){
 	// if(i == 0){
 	// 	return uW;
 	// }
@@ -74,23 +83,22 @@ __device__ double u(double *matriz, int i, int j, double den1, double den2, doub
 	// 	return uS;
 	// }
 	// printf("u(%d, %d) = %lf * %lf + %lf * %lf + %lf * %lf + %lf * %lf\n", i, j, w(i,j), malha(i, j-1), e(i,j), malha(i, j+1), s(i,j), malha(i-1, j), n(i,j), malha(i+1, j));
-	return w(i,j, intervaloX, intervaloY, den1)*malha(matriz, i, j-1, divX) + e(i,j, intervaloX, intervaloY, den1)*malha(matriz, i, j+1, divX) + s(i,j, intervaloX, intervaloY, den2)*malha(matriz, i-1, j, divX) + n(i,j, intervaloX,intervaloY, den2)*malha(matriz, i+1, j, divX);
+	return w(i,j)*malha(matriz, i, j-1) + e(i,j)*malha(matriz, i, j+1) + s(i,j)*malha(matriz, i-1, j) + n(i,j)*malha(matriz, i+1, j);
 }
 
-__global__ void calculoAzul(double *matriz, double den1, double den2, double intervaloX, double intervaloY, int divX, int divY){
-	int tidX = blockIdx.x + blockDim.x + threadIdx.x;
-	int tidY = blockIdx.y + blockDim.y + threadIdx.y;
+__global__ void calculoAzul(double *matriz){
+	int tidX = blockIdx.x * blockDim.x + threadIdx.x;
+	int tidY = blockIdx.y * blockDim.y + threadIdx.y;
 
-	matriz[tidX * divX + tidY] = u(matriz, tidX, tidY, den1, den2, intervaloX, intervaloY, divX, divY);
-
-
+	matriz[tidX * (d_divX + 2) + tidY] = u(matriz, tidX, tidY);
 }
 
-__global__ void calculoVermelho(double *matriz, double den1, double den2, double intervaloX, double intervaloY, int divX, int divY){
-	int tidX = blockIdx.x + blockDim.x + threadIdx.x;
-	int tidY = blockIdx.y + blockDim.y + threadIdx.y;
 
-	matriz[tidX * divX + tidY] = u(matriz, tidX, tidY, den1, den2, intervaloX, intervaloY, divX, divY);
+__global__ void calculoVermelho(double *matriz){
+	int tidX = blockIdx.x * blockDim.x + threadIdx.x;
+	int tidY = blockIdx.y * blockDim.y + threadIdx.y;
+
+	matriz[tidX * (d_divX + 2) + tidY] = u(matriz, tidX, tidY);
 
 }
 
@@ -105,6 +113,7 @@ void printMat(){
 		if(i != divX + 1)
 			printf("\n");
 	}
+	printf("\n");
 }
 
 void setupM(){
@@ -142,28 +151,38 @@ int main(int argc, char** argv){
 	denominador1 = 4*(1 + ((intervaloX*intervaloX)/(intervaloY*intervaloY)));
 	denominador2 = 4*(1 + ((intervaloY*intervaloY)/(intervaloX*intervaloX)));
 
-	cudaMalloc(&d_m, divX * divY * sizeof(double));
+	cudaMalloc(&d_m, (divX + 2) * (divY + 2) * sizeof(double));
 
 	h_m = (double *) malloc((divX + 2) * (divY + 2) * sizeof(double));
 
 	setupM();
 
-	cudaMemcpy(d_m, h_m, divX * divY * sizeof(double), cudaMemcpyHostToDevice);
+	//Usando "cudaMemcpyToSymbol" para copiar as variaveis da CPU para a GPU
+	cudaMemcpyToSymbol(d_intervaloX, &intervaloX, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_intervaloY, &intervaloY, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_denominador1, &denominador1, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_denominador2, &denominador2, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_divX, &divX, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_divY, &divY, sizeof(int), 0, cudaMemcpyHostToDevice);
+
+	cudaMemcpy(d_m, h_m, (divX + 2) * (divY + 2) * sizeof(double), cudaMemcpyHostToDevice);
 
 	dim3 num_threads(TAM_BLOCO, TAM_BLOCO);
-	dim3 num_blocos((divX + num_threads.x -1)/num_threads.x, (divY + num_threads.y -1)/num_threads.y);
+	dim3 num_blocos(((divX + 2) + num_threads.x -1)/num_threads.x, ((divY + 2) + num_threads.y -1)/num_threads.y);
 
 	for(i = 0; i < laps; i++){
 
-		calculoAzul<<<num_blocos, num_threads>>>(h_m, denominador1, denominador2, intervaloX, intervaloY, divX, divY);
+		calculoAzul<<<num_blocos, num_threads>>>(d_m);
 
-		calculoVermelho<<<num_blocos, num_threads>>>(h_m, denominador1, denominador2, intervaloX, intervaloY, divX, divY);
+      	calculoVermelho<<<num_blocos, num_threads>>>(d_m);
 
 	}		
 
-	cudaMemcpy(h_m, d_m, divX * divY * sizeof(double), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_m, d_m, (divX + 2) * (divY + 2) * sizeof(double), cudaMemcpyDeviceToHost);
 
 	printMat();
+
+	cudaDeviceReset();
 
 	return 0;
 }
