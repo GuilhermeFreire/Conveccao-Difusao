@@ -7,7 +7,7 @@
 #define uS 5.0
 #define uW 0.0
 #define uE 10.0
-#define TAM_BLOCO 32
+#define TAM_BLOCO 1024
 
 double intervaloX, intervaloY;
 double denominador1, denominador2;
@@ -47,26 +47,30 @@ __device__ double w(int i, int j){
 	return (2.0 + d_intervaloX * a(i,j))/d_denominador1;
 }
 
-__device__ double malha(double *matriz, int i, int j){
+__device__ double malhaGPU(double *matriz, int i, int j){
+	i++;
+	j++;
 	// //OBS: Casos de canto não importam, pois nunca serão usados no problema.
 	// //e.g. u(0,0) ou u(1,0) nunca serão usados no problema então tanto faz
 	// //o valor retornado.
-	// if(i == 0){
+	if(j <= 0){
 	// 	//uW foi escolhido para representar o uO do trabalho. 
 	// 	//W vem de 'West', visto que todas as variáveis exceto essa foram
 	// 	//nomeadas de acordo com sua cardinalidade em inglês
-	// 	return uW;
-	// }
-	// if(i == divX + 2){
-	// 	return uE;
-	// }
-	// if(j == 0){
-	// 	return uN;
-	// }
-	// if(j == divX + 2){
-	// 	return uS;
-	// }
-	return matriz[(i)*(d_divX + 2) + (j)];
+		return uW;
+	}
+	if(j >= d_divX + 2){
+		return uE;
+	}
+	if(i <= 0){
+		return uN;
+	}
+	if(i >= d_divY + 2){
+		return uS;
+	}
+	i--;
+	j--;
+	return matriz[i * d_divX + j];
 }
 
 __device__ double u(double *matriz, int i, int j){
@@ -83,23 +87,83 @@ __device__ double u(double *matriz, int i, int j){
 	// 	return uS;
 	// }
 	// printf("u(%d, %d) = %lf * %lf + %lf * %lf + %lf * %lf + %lf * %lf\n", i, j, w(i,j), malha(i, j-1), e(i,j), malha(i, j+1), s(i,j), malha(i-1, j), n(i,j), malha(i+1, j));
-	return w(i,j)*malha(matriz, i, j-1) + e(i,j)*malha(matriz, i, j+1) + s(i,j)*malha(matriz, i-1, j) + n(i,j)*malha(matriz, i+1, j);
+	return w(i,j)*malhaGPU(matriz, i, j-1) + e(i,j)*malhaGPU(matriz, i, j+1) + s(i,j)*malhaGPU(matriz, i-1, j) + n(i,j)*malhaGPU(matriz, i+1, j);
 }
 
 __global__ void calculoAzul(double *matriz){
 	int tidX = blockIdx.x * blockDim.x + threadIdx.x;
-	int tidY = blockIdx.y * blockDim.y + threadIdx.y;
+	int i, j;
 
-	matriz[tidX * (d_divX + 2) + tidY] = u(matriz, tidX, tidY);
+	i = 2*tidX/d_divX;
+	j = 2*tidX%d_divY;
+
+	matriz[i * (d_divX + 2) + j] = u(matriz, i, j);
 }
 
 
 __global__ void calculoVermelho(double *matriz){
 	int tidX = blockIdx.x * blockDim.x + threadIdx.x;
-	int tidY = blockIdx.y * blockDim.y + threadIdx.y;
+	int i, j;
 
-	matriz[tidX * (d_divX + 2) + tidY] = u(matriz, tidX, tidY);
+	i = 2*tidX/d_divX;
+	j = 2*tidX%d_divY + 1;
 
+	matriz[i * (d_divX + 2) + j] = u(matriz, i, j);
+
+}
+
+double malhaCPU(double *matriz, int i, int j){
+	i++;
+	j++;
+	// //OBS: Casos de canto não importam, pois nunca serão usados no problema.
+	// //e.g. u(0,0) ou u(1,0) nunca serão usados no problema então tanto faz
+	// //o valor retornado.
+	if(j <= 0){
+	// 	//uW foi escolhido para representar o uO do trabalho. 
+	// 	//W vem de 'West', visto que todas as variáveis exceto essa foram
+	// 	//nomeadas de acordo com sua cardinalidade em inglês
+		return uW;
+	}
+	if(j >= divX + 2){
+		return uE;
+	}
+	if(i <= 0){
+		return uN;
+	}
+	if(i >= divY + 2){
+		return uS;
+	}
+	i--;
+	j--;
+	return h_m[i * divX + j];
+}
+
+void printM(){
+	int i = 0, j = 0;
+	for(i = 0; i < divX + 2; i++){
+		printf("%lf ", malhaCPU(h_m, 0 ,i));
+	}
+	printf("\n");
+
+	for(i = 0; i < divX; i++){
+		for(j = 0; j < divY; j++){
+			if(j == 0){
+				printf("%lf ", malhaCPU(h_m ,i ,j-1));
+			}
+
+			printf("%lf ", h_m[i* divX + j]);
+			
+			if(j == divY - 1){
+				printf("%lf ", malhaCPU(h_m ,i ,j + 1));
+			}
+		}
+		printf("\n");
+	}
+
+	for(i = 0; i < divX + 2; i++){
+		printf("%lf ", malhaCPU(h_m, divX + 1,i));
+	}
+	printf("\n");
 }
 
 
@@ -132,6 +196,8 @@ int main(int argc, char** argv){
 
 	int laps = 0;
 	int i;
+	int threadsAzuis;
+	int threadsVermelhas;
 
 	if(argc < 2){
 		printf("Número incorreto de parâmetros:\n");
@@ -170,17 +236,22 @@ int main(int argc, char** argv){
 	dim3 num_threads(TAM_BLOCO, TAM_BLOCO);
 	dim3 num_blocos(((divX + 2) + num_threads.x -1)/num_threads.x, ((divY + 2) + num_threads.y -1)/num_threads.y);
 
+	//Calcula a quantidade de posiçes que devem ser calculadas por threads de cada cor
+	threadsAzuis = (divX * divY)/2; //Par
+	threadsVermelhas = threadsAzuis + (divX * divY)%2; //Impar
+
+	int blocosAzuis, blocosVermelhos;
+
+	blocosAzuis = (threadsAzuis + TAM_BLOCO -1)/TAM_BLOCO;
+	blocosVermelhos = (threadsVermelhas + TAM_BLOCO -1)/TAM_BLOCO;
+	
 	for(i = 0; i < laps; i++){
-
-		calculoAzul<<<num_blocos, num_threads>>>(d_m);
-
-      	calculoVermelho<<<num_blocos, num_threads>>>(d_m);
-
-	}		
-
+		calculoAzul<<<blocosAzuis, TAM_BLOCO>>>(d_m);
+		calculoVermelho<<<blocosVermelhos, TAM_BLOCO>>>(d_m);
+	}
 	cudaMemcpy(h_m, d_m, (divX + 2) * (divY + 2) * sizeof(double), cudaMemcpyDeviceToHost);
 
-	printMat();
+	printM();
 
 	cudaDeviceReset();
 
