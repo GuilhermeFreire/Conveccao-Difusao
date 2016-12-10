@@ -12,4 +12,4 @@ Adicionalmente podemos visualizar a distribuição de calor calculada salvando o
 ./Gauss_Jacobi <divisões em X> <divisões em Y> > sample.txt
 python heatmap.py
 ```
-![Malha de 102x102 com 5000 iterações](https://github.com/GuilhermeFreire/Conveccao-Difusao/blob/master/images/200x200_10000.png "Malha de 102x102 com 5000 iterações")
+![Malha de 1002x1002 com 100000 iterações](https://github.com/GuilhermeFreire/Conveccao-Difusao/blob/master/images/1000x1000_100000.png "Malha de 1002x1002 com 100000 iterações")

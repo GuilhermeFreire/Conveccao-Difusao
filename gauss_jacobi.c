@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <string.h>
 
 #define PRECISION 0.00001
 #define uN 5.0
@@ -9,8 +11,9 @@
 
 double intervaloX, intervaloY;
 double denominador1, denominador2;
-double* m;
+double* m, *past_m;
 int divX, divY;
+FILE *output_file;
 
 double a(int i, int j){
 	double x = i*intervaloX;
@@ -73,6 +76,7 @@ double u(int i, int j){
 	// 	return uS;
 	// }
 	// printf("u(%d, %d) = %lf * %lf + %lf * %lf + %lf * %lf + %lf * %lf\n", i, j, w(i,j), malha(i, j-1), e(i,j), malha(i, j+1), s(i,j), malha(i-1, j), n(i,j), malha(i+1, j));
+	// printf("%f * %f + %f * %f + %f * %f + %f * %f\n",w(i,j), malha(i, j-1), e(i,j), malha(i, j+1), s(i,j), malha(i-1, j), n(i,j), malha(i+1, j));
 	return w(i,j)*malha(i, j-1) + e(i,j)*malha(i, j+1) + s(i,j)*malha(i-1, j) + n(i,j)*malha(i+1, j);
 }
 
@@ -116,6 +120,18 @@ void printMat(){
 	}
 }
 
+void fprintMat(){
+	int i, j;
+	for(i = 0; i < divX + 2; i++){
+		for(j = 0; j < divY + 2; j++){
+			fprintf(output_file, "%lf", m[i*(divX + 2) + j]);
+			if(j != divY + 1) fprintf(output_file, " ");
+		}
+		if(i != divX + 1)
+			fprintf(output_file, "\n");
+	}
+}
+
 void setupM(){
 	int i;
 	for(i = 0; i < divY + 2; i++){
@@ -128,10 +144,21 @@ void setupM(){
 	}
 }
 
+int compare(){
+	int errors = 0;
+	for(int i = 0; i < (divX + 2) * (divY + 2); i++){
+		if(fabs(m[i] - past_m[i]) > PRECISION){
+			errors++;
+		}
+	}
+	return errors;
+}
+
 int main(int argc, char** argv){
 
 	int laps = 0;
 	int i, j;
+	int diff = 0;
 
 	if(argc < 2){
 		printf("Número incorreto de parâmetros:\n");
@@ -139,6 +166,13 @@ int main(int argc, char** argv){
 		printf("\tPara valores iguais: %s <número de divisões>\n", argv[0]);
 		printf("\tPara valores diferentes: %s <divisões em X> <divisões em Y>\n", argv[0]);
 		exit(-1);
+	}
+	
+	output_file = fopen("test.txt", "w");
+	if (output_file == NULL)
+	{
+	    printf("Error opening file!\n");
+	    exit(1);
 	}
 
 	divX = atoi(argv[1]);
@@ -151,6 +185,7 @@ int main(int argc, char** argv){
 	denominador2 = 4*(1 + ((intervaloY*intervaloY)/(intervaloX*intervaloX)));
 
 	m = (double *) malloc((divX + 2) * (divY + 2) * sizeof(double));
+	past_m = (double *) malloc((divX + 2) * (divY + 2) * sizeof(double));
 
 	setupM();
 
@@ -160,14 +195,21 @@ int main(int argc, char** argv){
 				// printf("u(%d, %d) = %lf,\n", i, j, u(i, j));
 				m[(i)*(divX + 2) + j] = u(i, j);
 				// printMat();
+				// printf("\n\n");
 			}
 			// printf("\n");
 		}
-		// printM();
-		// printf("\n");
+		memcpy(past_m, m, (divX + 2) * (divY + 2) * sizeof(double));
+		// diff = compare(past_m, m);
+		// printf("%d\n", diff);
+		fprintMat();
+		fflush(output_file);
+		rewind(output_file);
+		// printf("\n\n");
 	}
 
-	printMat();
+	// printMat();
+	fclose(output_file);
 
 	return 0;
 }
