@@ -105,16 +105,48 @@ __device__ double somaDosPontosVizinhos(int i, int j, double *m){
 	return temp;
 }
 
+//As funcoes "funcaoOmega()" e " letraGrega()" abaixo fazem um calculo do omega especifico
+//para cada ponto que etá sendo analisado. A ideia é a mesma do outro programa,a de fazer uma
+//media ponderada, porem aqui as condicoes sao mais especificas
+__device__ double letraGrega(int i, int j){
+
+	double raiz1, raiz2, total;
+
+	raiz1 = e(i,j) * w(i,j);
+	raiz1 = pow(raiz1, 0.5);
+	raiz1 = raiz1 * cos(d_h1*M_PI);
+
+	raiz2 = s(i,j) * n(i,j);
+	raiz2 = pow(raiz2, 0.5);
+	raiz2 = raiz2 * cos(d_h2*M_PI);
+
+	total = 2*(raiz1 + raiz2);
+	return total;
+}
+
+__device__ double funcaoOmega(int i, int j){
+
+	double raiz, total;
+
+	raiz = 1 - pow(letraGrega(i, j), 2);
+	raiz = pow(raiz, 0.5);
+
+	total = 2/(1 + raiz);
+
+	return total;
+}
+
 //Kernels principais do programa. Cada um trabalho em um conjunto de pontos da matriz
 //fazendo uma media ponderada entre o valor atual do ponto que está sendo analisado e 
 //seus quatro pontos adjacentes. O quanto cada valor vai pesar é determinado pelo ômega
-//da funcao que, nesse caso, é fixo
+//da funcao que, nesse caso, é calculado mais a fundo
 __global__ void vermelhos(double *m){
 	int tidx = blockIdx.x * blockDim.x + threadIdx.x;
 	int tidy = blockIdx.y * blockDim.y + threadIdx.y;
 
 	if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < d_dimensaoY - 1){
 		if((tidx + tidy) % 2 == 0){
+			double omega = funcaoOmega(tidx, tidy);
 			m[tidx * d_dimensaoY + tidy] *= (1 - omega);
 			m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
 		}
@@ -127,6 +159,7 @@ __global__ void azuis(double *m){
 
 	if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < d_dimensaoY - 1){
 		if((tidx + tidy) % 2 == 1){
+			double omega = funcaoOmega(tidx, tidy);
 			m[tidx * d_dimensaoY + tidy] *= (1 - omega);
 			m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
 		}
