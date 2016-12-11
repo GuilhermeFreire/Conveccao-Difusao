@@ -26,7 +26,7 @@ text = file.read()
 
 matrix = parseText(text)
 
-img = plt.imshow(matrix, cmap='hot', interpolation='nearest', animated=True)
+img = plt.imshow(matrix, cmap='hot', origin='lower', interpolation='nearest', animated=True)
 # plt.imshow(matrix, cmap='hot', interpolation='nearest')
 
 ani = animation.FuncAnimation(fig, updatefig, interval=100, blit=True)

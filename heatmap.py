@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-with open("sample.txt", "r") as f:
+with open("test.txt", "r") as f:
 	text = f.read()
 
 matrix = text.split("\n")
@@ -11,5 +11,5 @@ for i in range(len(matrix)):
 	for j in range(len(matrix[i])):
 		matrix[i][j] = float(matrix[i][j])
 
-plt.imshow(matrix, cmap='hot', interpolation='nearest')
+plt.imshow(matrix, cmap='hot', origin='lower', interpolation='nearest')
 plt.show()
