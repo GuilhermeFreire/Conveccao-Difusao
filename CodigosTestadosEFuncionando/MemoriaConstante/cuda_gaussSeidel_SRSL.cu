@@ -4,7 +4,7 @@
 #include <time.h>
 
 #define PRECISION 0.00001
-#define TAM_BLOCO 16
+#define TAM_BLOCO 8
 #define uN 5.0
 #define uS 5.0
 #define uW 0.0
@@ -216,9 +216,9 @@ int main(int argc, char** argv){
 	cudaMemcpyToSymbol(d_dimensaoY, &h_dimensaoY, sizeof(int), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_h1, &h_h1, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_h2, &h_h2, sizeof(double), 0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(d_parcial1, &d_parcial1, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_parcial1, &h_parcial1, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_parcial2, &h_parcial2, sizeof(double), 0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(d_cosH1PI, &d_cosH1PI, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_cosH1PI, &h_cosH1PI, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_cosH2PI, &h_cosH2PI, sizeof(double), 0, cudaMemcpyHostToDevice);
 
 	//Iniciando a contagem do tempo

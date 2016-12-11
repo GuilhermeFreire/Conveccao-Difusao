@@ -3,17 +3,29 @@
 #include <math.h>
 #include <time.h>
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 #define PRECISION 0.00001
 #define TAM_BLOCO 8
 #define uN 5.0
 #define uS 5.0
 #define uW 0.0
 #define uE 10.0
+#define GPU_ZERO 0
+#define GPU_ONE 1
 
 //Variáveis CPU
 double h_h1, h_h2;
 double h_denominador1, h_denominador2;
-double *h_m, *d_m;
+double *h0_m, *d0_m, *h1_m, *d1_m;
 double h_parcial1, h_parcial2;
 int h_dimensaoX, h_dimensaoY, laps = 0, i;
 
@@ -36,8 +48,14 @@ void printMat(){
 	int i, j;
 	for(i = 0; i < h_dimensaoX; i++){
 		for(j = 0; j < h_dimensaoY; j++){
-			fprintf(arquivo, "%lf", h_m[i * h_dimensaoY + j]);
-			if(j != h_dimensaoY - 1) fprintf(arquivo, " ");
+
+			if(j < h_dimensaoY/2){
+				fprintf(arquivo, "%lf", h0_m[i * h_dimensaoY + j]);
+				if(j != h_dimensaoY - 1) fprintf(arquivo, " ");
+			}else{
+				fprintf(arquivo, "%lf", h1_m[i * h_dimensaoY + j]);
+				if(j != h_dimensaoY - 1) fprintf(arquivo, " ");
+			}
 		}
 		if(i != h_dimensaoX - 1)
 			fprintf(arquivo, "\n");
@@ -50,13 +68,13 @@ void setupM(){
 	for(i = 0; i < h_dimensaoX; i++){
 		for(j = 0; j < h_dimensaoY; j++){
 			if(i == 0){
-				h_m[i * h_dimensaoY + j] = uN;
+				h1_m[i * h_dimensaoY + j] = uN;
 			}else if(i == (h_dimensaoX - 1)){
-				h_m[i * h_dimensaoY + j] = uS;
+				h1_m[i * h_dimensaoY + j] = uS;
 			}else if(j == 0){
-				h_m[i * h_dimensaoY + j] = uW;
+				h1_m[i * h_dimensaoY + j] = uW;
 			}else if(j == h_dimensaoY - 1){
-				h_m[i * h_dimensaoY + j] = uE;
+				h1_m[i * h_dimensaoY + j] = uE;
 			}
 		}
 	}
@@ -110,26 +128,44 @@ __device__ double somaDosPontosVizinhos(int i, int j, double *m){
 //fazendo uma media ponderada entre o valor atual do ponto que está sendo analisado e 
 //seus quatro pontos adjacentes. O quanto cada valor vai pesar é determinado pelo ômega
 //da funcao que, nesse caso, é fixo
-__global__ void vermelhos(double *m){
+__global__ void vermelhos(double *m, int device){
 	int tidx = blockIdx.x * blockDim.x + threadIdx.x;
 	int tidy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < d_dimensaoY - 1){
-		if((tidx + tidy) % 2 == 0){
-			m[tidx * d_dimensaoY + tidy] *= (1 - omega);
-			m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+	if(device == 0){
+		if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < (d_dimensaoY - 1)/2){
+			if((tidx + tidy) % 2 == 0){
+				m[tidx * d_dimensaoY + tidy] *= (1 - omega);
+				m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+			}
+		}
+	}else{
+		if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy >= (d_dimensaoY - 1)/2 && tidy < d_dimensaoY - 1){
+			if((tidx + tidy) % 2 == 0){
+				m[tidx * d_dimensaoY + tidy] *= (1 - omega);
+				m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+			}
 		}
 	}
 }
 
-__global__ void azuis(double *m){
+__global__ void azuis(double *m, int device){
 	int tidx = blockIdx.x * blockDim.x + threadIdx.x;
 	int tidy = blockIdx.y * blockDim.y + threadIdx.y;
 
-	if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < d_dimensaoY - 1){
-		if((tidx + tidy) % 2 == 1){
-			m[tidx * d_dimensaoY + tidy] *= (1 - omega);
-			m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+	if(device == 0){
+		if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy != 0 && tidy < (d_dimensaoY - 1)/2){
+			if((tidx + tidy) % 2 == 1){
+				m[tidx * d_dimensaoY + tidy] *= (1 - omega);
+				m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+			}
+		}
+	}else{
+		if(tidx != 0 && tidx < d_dimensaoX - 1 && tidy >= (d_dimensaoY - 1)/2 && tidy < d_dimensaoY - 1){
+			if((tidx + tidy) % 2 == 1){
+				m[tidx * d_dimensaoY + tidy] *= (1 - omega);
+				m[tidx * d_dimensaoY + tidy] += omega * somaDosPontosVizinhos(tidx, tidy, m);
+			}
 		}
 	}
 }
@@ -164,14 +200,36 @@ int main(int argc, char** argv){
 	h_parcial2 = 2/h_denominador2;
 
 	//Alocando a matriz na CPU e inicializando
-	h_m = (double *) calloc(h_dimensaoX * h_dimensaoY, sizeof(double));
+	h0_m = (double *) calloc(h_dimensaoX * h_dimensaoY, sizeof(double));
+	h1_m = (double *) calloc(h_dimensaoX * h_dimensaoY, sizeof(double));
 	setupM();
 
-	//Alocando a matriz na GPU
-	cudaMalloc(&d_m, h_dimensaoX * h_dimensaoY * sizeof(double));
+	//Escolhendo a GPU 0 para transferir dados
+	cudaSetDevice(GPU_ZERO);
 
-	//Transferindo as informações necessárias para a GPU
-	cudaMemcpy(d_m, h_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyHostToDevice);
+	//Alocando a matriz na GPU 0
+	cudaMalloc(&d0_m, h_dimensaoX * h_dimensaoY * sizeof(double));
+
+	//Transferindo as informações necessárias para a GPU 0
+	cudaMemcpy(d0_m, h1_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_denominador1, &h_denominador1, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_denominador2, &h_denominador2, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_dimensaoX, &h_dimensaoX, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_dimensaoY, &h_dimensaoY, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_h1, &h_h1, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_h2, &h_h2, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_parcial1, &h_parcial1, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_parcial2, &h_parcial2, sizeof(double), 0, cudaMemcpyHostToDevice);
+
+
+	//Escolhendo a GPU 1 para transferir dados
+	cudaSetDevice(GPU_ONE);
+
+	//Alocando a matriz na GPU 1
+	cudaMalloc(&d1_m, h_dimensaoX * h_dimensaoY * sizeof(double));
+
+	//Transferindo as informações necessárias para a GPU 1
+	cudaMemcpy(d1_m, h1_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_denominador1, &h_denominador1, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_denominador2, &h_denominador2, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(d_dimensaoX, &h_dimensaoX, sizeof(int), 0, cudaMemcpyHostToDevice);
@@ -190,13 +248,26 @@ int main(int argc, char** argv){
 
 	//Fazendo os cálculos
 	for(i = 0; i < laps; i++){
-		vermelhos<<<nblocos, nthreads>>>(d_m);
-		azuis<<<nblocos, nthreads>>>(d_m);
+
+		cudaSetDevice(GPU_ZERO);
+		vermelhos<<<nblocos, nthreads>>>(d0_m, GPU_ZERO);
+		azuis<<<nblocos, nthreads>>>(d0_m, GPU_ZERO);
+		//gpuErrchk( cudaPeekAtLastError() );
+		
+		cudaSetDevice(GPU_ONE);
+		vermelhos<<<nblocos, nthreads>>>(d1_m, GPU_ONE);
+		azuis<<<nblocos, nthreads>>>(d1_m, GPU_ONE);
 	}
 
+	cudaSetDevice(GPU_ZERO);
 	//Trazendo a matriz de volta para a CPU
-	cudaMemcpy(h_m, d_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h0_m, d0_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyDeviceToHost);
+	//Reseta a GPU para liberar todos os recursos
+	cudaDeviceReset();
 
+	cudaSetDevice(GPU_ONE);
+	//Trazendo a matriz de volta para a CPU
+	cudaMemcpy(h1_m, d1_m, h_dimensaoX * h_dimensaoY * sizeof(double), cudaMemcpyDeviceToHost);
 	//Reseta a GPU para liberar todos os recursos
 	cudaDeviceReset();
 
