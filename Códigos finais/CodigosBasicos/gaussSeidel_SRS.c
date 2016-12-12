@@ -177,6 +177,8 @@ int main(int argc, char** argv){
 				}
 			}
 		}
+		//Essas três linhas são necessárias para a visualização ao vivo.
+		//Para calcular o speed up comente-nas.
 		printMat();
 		fflush(arquivo);
 		rewind(arquivo);
