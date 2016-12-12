@@ -19,12 +19,13 @@ nvcc cuda_gaussSeidel_Mem_Const_SRS.cu -o Gauss_Seidel_CUDA
 ```
 A visualização se dá da mesmsa forma que a versão sequencial.
 ## Visualização ao vivo
-Para visualizar a matriz conforme sua evoluçãto nas iterações, vá até a pasta onde o programa principal e o arquivo `live_heatmap.py` estão. Certifique-se de que estão na mesma pasta (talvez seja necessário fazer uma cópia do script em python para a localização do programa principal).
+Para visualizar a matriz conforme sua evolução nas iterações, vá até a pasta onde o programa principal e o arquivo `live_heatmap.py` estão. Certifique-se de que estão na mesma pasta (talvez seja necessário fazer uma cópia do script em python para a localização do programa principal).
 Rode o script `live_heatmap.py`. Se algum erro ocorrer, provavelmente é porque o arquivo `sample.txt` está faltando. Certifique-se que ele existe e está preenchido com alguma matriz válida (isso pode ser feito rodando o programa principal por uma iteração antes de rodar o script em python).
 ```bash
 python live_heatmap.py
 ```
 Com o python rodando, abra outra janela do terminal na mesma pasta e rode a aplicação principal.
+Bons valores para visualizar são 200x200 com 10000 iterações.
 ```bash
 ./Gauss_Seidel <divisões em X> <divisões em Y> <número de iterações>
 ```
