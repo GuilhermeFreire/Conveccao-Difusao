@@ -177,9 +177,11 @@ int main(int argc, char** argv){
 				}
 			}
 		}
+		printMat();
+		fflush(arquivo);
+		rewind(arquivo);
 	}
 
-	printMat();
 	fclose(arquivo);
 	end = clock();
 

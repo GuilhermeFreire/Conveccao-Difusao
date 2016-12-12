@@ -22,13 +22,13 @@ FILE *arquivo;
 
 double a(int i, int j){
 	double x = i*h1;
-	double y = i*h2;
+	double y = j*h2;
 	return 500 * x * (1 - x) * (0.5 - y);
 }
 
 double b(int i, int j){
 	double x = i*h1;
-	double y = i*h2;
+	double y = j*h2;
 	return 500 * y * (y - 1) * (x - 0.5);
 }
 

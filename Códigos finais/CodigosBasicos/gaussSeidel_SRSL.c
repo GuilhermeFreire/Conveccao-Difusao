@@ -175,6 +175,9 @@ int main(int argc, char** argv){
 				}
 			}
 		}
+		printMat();
+		fflush(arquivo);
+		rewind(arquivo);
 	}
 
 	arquivo = fopen("sample.txt", "w");

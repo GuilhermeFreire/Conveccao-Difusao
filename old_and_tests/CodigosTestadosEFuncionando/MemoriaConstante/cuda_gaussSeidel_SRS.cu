@@ -67,14 +67,14 @@ void setupM(){
 //Funcoes "a" e "b" especificada pelo problema
 __device__ double a(int i, int j){
 	double x = i * d_h1;
-	double y = i * d_h2;
+	double y = j * d_h2;
 	return 500 * x * (1 - x) * (0.5 - y);
 }
 
 __device__ double b(int i, int j){
 	double x = i * d_h1;
-	double y = i * d_h2;
-	return 500 * y * (y - 1) * (x - 0.5);
+	double y = j * d_h2;
+	return 500 * y * (1 - y) * (x - 0.5);
 }
 
 
